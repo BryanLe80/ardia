@@ -344,8 +344,8 @@ close, never a bare "Continue" or "Decline" on some other dialog, says so in the
 (`A consent banner was in the way: … "Reject all" button was clicked (reject)`) and retries; otherwise it scrolls
 the element to the middle of the viewport (a sticky header over it) and retries. A left click on an element that still sits outside the page after that
 (a carousel slide translated to x = -2700) gets a DOM `click()` instead, and the output says so, but only when it is
-visible to CSS, at least 4×4, not clipped (sr-only), and inside a container that clips overflow; a honeypot at
-left:-9999px still fails
+visible to CSS, at least 4×4, not clipped (sr-only), inside a container that clips overflow, and not outside
+every open modal dialog (one opened with `showModal()` or marked `aria-modal="true"`); a honeypot at left:-9999px still fails
 (`dom_click_fallback`): one BU Bench agent hit `outside_viewport` 20 times on carousel cards. If it's still covered it fails with
 `covered by <tag#id.class>`, and one outside the laid-out viewport with `outside_viewport` (the point and the viewport
 size). A tab with no size yet (0×0, seen on a loaded hidden test instance) is waited for up to 2 s, then given a

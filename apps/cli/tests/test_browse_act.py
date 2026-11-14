@@ -267,3 +267,42 @@ class ActInChrome(unittest.TestCase):
         out = self.browse("drag", "#html5 li:nth-child(1)", "#html5 li:nth-child(3)").stdout
         self.assertIn("HTML5 drag and drop", out)
         self.assertIn("moved to 3 of 3 (was 1)", out)
+
+    def open_carousel_modal(self):
+        self.browse("open", f"http://127.0.0.1:{self.http_port}/carousel-modal.html", "--show")
+
+    def test_an_off_page_slide_gets_a_dom_click_beside_a_non_modal_dialog_in_an_app_shell(self):
+        self.open_carousel_modal()
+        said = self.browse("click", "#s2").stdout
+        self.assertIn("got a DOM click instead of a pointer click", said)
+        self.assertEqual(self.value("state.clicked.join()"), "s2")
+
+    def test_an_off_page_slide_is_not_clicked_through_a_modal_dialog(self):
+        self.open_carousel_modal()
+        self.browse("click", "#open-modal")
+        stuck = self.browse("click", "#s2", check=False)
+        self.assertNotEqual(stuck.returncode, 0)
+        self.assertIn("Close that first", stuck.stderr + stuck.stdout)
+        self.assertEqual(self.value("state.clicked.join()"), "")
+
+    def test_an_off_page_slide_inside_the_open_modal_dialog_gets_a_dom_click(self):
+        self.open_carousel_modal()
+        self.browse("click", "#open-modal")
+        said = self.browse("click", "#m2").stdout
+        self.assertIn("got a DOM click instead of a pointer click", said)
+        self.assertEqual(self.value("state.clicked.join()"), "m2")
+
+    def test_an_off_page_slide_in_a_modal_dialog_over_another_modal_gets_a_dom_click(self):
+        self.open_carousel_modal()
+        self.value("document.getElementById('sheet').classList.add('open'), document.getElementById('modal').showModal(), 'ok'")
+        said = self.browse("click", "#m2").stdout
+        self.assertIn("got a DOM click instead of a pointer click", said)
+        self.assertEqual(self.value("state.clicked.join()"), "m2")
+
+    def test_an_off_page_slide_is_not_clicked_through_an_aria_modal_sheet(self):
+        self.open_carousel_modal()
+        self.browse("click", "#open-sheet")
+        stuck = self.browse("click", "#s2", check=False)
+        self.assertNotEqual(stuck.returncode, 0)
+        self.assertIn("Close that first", stuck.stderr + stuck.stdout)
+        self.assertEqual(self.value("state.clicked.join()"), "")
