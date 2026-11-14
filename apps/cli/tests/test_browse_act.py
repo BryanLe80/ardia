@@ -299,6 +299,22 @@ class ActInChrome(unittest.TestCase):
         self.assertIn("got a DOM click instead of a pointer click", said)
         self.assertEqual(self.value("state.clicked.join()"), "m2")
 
+    def test_an_off_page_slide_in_a_modal_dialog_under_another_modal_is_not_clicked(self):
+        self.open_carousel_modal()
+        self.value("document.getElementById('modal').showModal(), document.getElementById('confirm').showModal(), 'ok'")
+        stuck = self.browse("click", "#m2", check=False)
+        self.assertNotEqual(stuck.returncode, 0)
+        self.assertIn("Close that first", stuck.stderr + stuck.stdout)
+        self.assertEqual(self.value("state.clicked.join()"), "")
+
+    def test_an_off_page_slide_beside_a_nested_modal_dialog_is_not_clicked(self):
+        self.open_carousel_modal()
+        self.value("document.getElementById('modal').showModal(), document.getElementById('partner').showModal(), 'ok'")
+        stuck = self.browse("click", "#m2", check=False)
+        self.assertNotEqual(stuck.returncode, 0)
+        self.assertIn("Close that first", stuck.stderr + stuck.stdout)
+        self.assertEqual(self.value("state.clicked.join()"), "")
+
     def test_an_off_page_slide_is_not_clicked_through_an_aria_modal_sheet(self):
         self.open_carousel_modal()
         self.browse("click", "#open-sheet")

@@ -599,7 +599,9 @@ DOM_CLICK = """(el) => {
   if (!clipped) return false;
   const shown = (node) => node.checkVisibility ? node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) : !!node.offsetParent;
   const modals = [...document.querySelectorAll("dialog:modal, [aria-modal=true]")].filter(shown);
-  if (modals.length && !modals.some((node) => node.contains(el))) return false;
+  const focused = modals.filter((node) => node.contains(document.activeElement));
+  const holding = focused.length ? focused.slice(-1) : modals;
+  if (modals.length && !holding.some((node) => node.contains(el))) return false;
   el.focus && el.focus({ preventScroll: true });
   el.click();
   return true;
