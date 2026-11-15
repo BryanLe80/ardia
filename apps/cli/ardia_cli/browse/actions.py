@@ -611,22 +611,52 @@ DOM_CLICK = """(el) => {
     for (; node; node = node.parentNode || node.host) if (node === outer) return true;
     return false;
   };
-  const onScreen = (box) => ({ left: Math.max(box.left, 0), right: Math.min(box.right, innerWidth), top: Math.max(box.top, 0), bottom: Math.min(box.bottom, innerHeight) });
-  const showing = (node) => {
-    if (node.closest("[inert]")) return false;
-    if (node.checkVisibility ? !node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) : !node.offsetParent) return false;
-    const box = onScreen(node.getBoundingClientRect());
-    return box.right > box.left && box.bottom > box.top;
+  const viewportRoot = document.compatMode === "BackCompat" && document.body ? document.body : document.documentElement;
+  const viewportWidth = Math.min(viewportRoot.clientWidth || innerWidth, innerWidth);
+  const viewportHeight = Math.min(viewportRoot.clientHeight || innerHeight, innerHeight);
+  const SLIVER = 2;
+  const visible = (node) => node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+  const onScreen = (node) => {
+    const box = node.getBoundingClientRect();
+    const clamped = { left: Math.max(box.left, 0), right: Math.min(box.right, viewportWidth), top: Math.max(box.top, 0), bottom: Math.min(box.bottom, viewportHeight) };
+    return clamped.right - clamped.left >= SLIVER && clamped.bottom - clamped.top >= SLIVER ? clamped : null;
   };
-  const modals = [...document.querySelectorAll("dialog:modal, [aria-modal=true]")].filter(showing);
+  const shownBox = (modal) => {
+    if (modal.closest("[inert]")) return null;
+    const contents = getComputedStyle(modal).display === "contents";
+    if (!contents && !visible(modal)) return null;
+    const own = contents ? null : onScreen(modal);
+    if (own) return own;
+    const walker = document.createTreeWalker(modal, NodeFilter.SHOW_ELEMENT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const box = onScreen(node);
+      if (box && !node.closest("[inert]") && visible(node)) return box;
+    }
+    return null;
+  };
+  const boxes = new Map();
+  for (const modal of document.querySelectorAll("dialog:modal, [aria-modal=true]")) {
+    const box = shownBox(modal);
+    if (box) boxes.set(modal, box);
+  }
+  const modals = [...boxes.keys()];
   if (modals.length) {
     const owner = (node) => modals.filter((modal) => within(modal, node)).pop();
     const focused = owner(document.activeElement);
-    const onTop = modals.filter((modal) => {
-      const box = onScreen(modal.getBoundingClientRect());
-      return owner(document.elementFromPoint((box.left + box.right) / 2, (box.top + box.bottom) / 2)) === modal;
-    });
-    const holding = focused ? [focused] : onTop.length ? onTop : modals;
+    const covered = new Set();
+    for (const box of boxes.values()) {
+      for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
+        const x = box.left + (box.right - box.left) * fx, y = box.top + (box.bottom - box.top) * fy;
+        const over = owner(document.elementFromPoint(x, y));
+        if (!over) continue;
+        for (const [other, under] of boxes) {
+          if (other !== over && x >= under.left && x <= under.right && y >= under.top && y <= under.bottom) covered.add(other);
+        }
+      }
+    }
+    const top = modals.filter((modal) => !covered.has(modal));
+    const ranked = top.length ? top : modals;
+    const holding = ranked.length === 1 ? ranked : ranked.includes(focused) ? [focused] : top.length ? ranked : ranked.slice(-1);
     if (!holding.some((modal) => within(modal, el))) {
       const blocking = holding[holding.length - 1];
       const labelled = blocking.getAttribute("aria-labelledby");

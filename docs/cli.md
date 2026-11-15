@@ -354,10 +354,15 @@ close, never a bare "Continue" or "Decline" on some other dialog, says so in the
 the element to the middle of the viewport (a sticky header over it) and retries. A left click on an element that still sits outside the page after that
 (a carousel slide translated to x = -2700) gets a DOM `click()` instead, and the output says so, but only when it is
 visible to CSS, at least 4×4, not clipped (sr-only), inside a container that clips overflow, and, while a modal
-dialog is showing (one opened with `showModal()` or marked `aria-modal="true"`, visible to CSS and opacity, not inert,
-with a box of some size on screen), inside the innermost one that holds focus, or, when none does, the one on top at
-its own middle; a shadow root counts as inside its host, and a menu portaled out of the dialog doesn't count as inside it.
-Outside it, the click fails with `outside_viewport` naming that dialog and saying to close it first
+dialog is showing, inside the one on top. Only a native `<dialog>` opened with `showModal()` and an element marked
+`aria-modal="true"` count as modal: a `role="dialog"` or `role="alertdialog"` without `aria-modal`, as Radix renders
+it, and a modal inside a shadow root aren't seen, and the click goes through as before. A modal is showing when it is
+visible to CSS and opacity, not inert, and its box, or for a wrapper with no box of its own (Headless UI's zero-height
+`relative z-50` one) a visible descendant's box, covers at least 2×2 px of the viewport without its scrollbar. The one on top is found by
+hit-testing five points of each showing modal: a modal another one is over at any of them is below it. When more than
+one is left on top, the one holding focus wins; when the hit test finds none on top, the last in the document counts.
+A shadow root counts as inside its host, and a menu portaled out of the dialog doesn't count as inside it.
+Outside the modal on top, the click fails with `outside_viewport` naming that dialog and saying to close it first
 (`dom_click_behind_modal`); a honeypot at left:-9999px still fails
 (`dom_click_fallback`): one BU Bench agent hit `outside_viewport` 20 times on carousel cards. If it's still covered it fails with
 `covered by <tag#id.class>`, and one outside the laid-out viewport with `outside_viewport` (the point and the viewport

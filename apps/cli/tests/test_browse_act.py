@@ -347,3 +347,31 @@ class ActInChrome(unittest.TestCase):
         self.open_carousel_modal()
         self.value("document.getElementById('panel').hidden = false, 'ok'")
         self.assert_dom_clicked("#s2", "s2")
+
+    def test_a_zero_height_aria_modal_wrapper_with_fixed_children_holds_back_a_dom_click(self):
+        self.open_carousel_modal()
+        self.value("reveal('headless'), document.getElementById('pay').focus(), 'ok'")
+        self.assertEqual(self.value("String(document.getElementById('headless').getBoundingClientRect().height)"), "0")
+        self.assert_held_back("#s2", "Payment")
+
+    def test_a_zero_height_aria_modal_wrapper_whose_children_faded_out_does_not_hold_back_a_dom_click(self):
+        self.open_carousel_modal()
+        self.value("reveal('headless'), document.getElementById('headless').classList.add('leaving'), 'ok'")
+        self.assert_dom_clicked("#s2", "s2")
+
+    def test_a_closed_drawer_at_the_scrollbar_edge_does_not_hold_back_a_dom_click(self):
+        self.browse("open", f"http://127.0.0.1:{self.http_port}/carousel-scrollbar.html", "--show")
+        self.assertEqual(self.value("String(innerWidth - document.documentElement.clientWidth)"), "14")
+        self.assert_dom_clicked("#s2", "s2")
+
+    def test_the_aria_modal_on_top_wins_over_focus_left_in_the_one_below(self):
+        self.open_carousel_modal()
+        self.value("reveal('lower', 'upper'), document.getElementById('lower-button').focus(), 'ok'")
+        self.assert_held_back("#l2", "Upper confirm")
+        self.assert_dom_clicked("#u2", "u2")
+
+    def test_a_tooltip_over_the_top_aria_modal_does_not_let_a_click_into_the_one_below(self):
+        self.open_carousel_modal()
+        self.value("reveal('lower', 'upper', 'tip'), 'ok'")
+        self.assertEqual(self.value("document.elementFromPoint(620, 400).id"), "tip")
+        self.assert_held_back("#l2", "Upper confirm")
