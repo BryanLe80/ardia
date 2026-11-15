@@ -33,6 +33,7 @@ EMAIL = re.compile(r"[^\s@<>()\[\],;:\"']+@[^\s@<>()\[\],;:\"']+\.[A-Za-z]{2,}")
 ENABLE_WAIT = 1.5
 EDITOR_WAIT = 1.0
 COMMIT_WAIT = 0.5
+CLOSING_MODAL_WAIT = 0.5
 POLL = 0.05
 INSERTED_INPUT_TYPES = frozenset({"text", "search", "email", "url", "tel", "number"})
 DRAG_FAR_SHARE = 0.75
@@ -527,6 +528,14 @@ async def dom_click(page, element, error: BrowseError):
 
     clicked = await page.call(DOM_CLICK, element, frame=element.frame)
     if isinstance(clicked, dict):
+        async def unblocked():
+            nonlocal clicked
+            clicked = await page.call(DOM_CLICK, element, frame=element.frame)
+            return not isinstance(clicked, dict)
+
+        if await poll(unblocked, CLOSING_MODAL_WAIT) and clicked:
+            command_metrics.flag("dom_click_waited_for_modal", True)
+    if isinstance(clicked, dict):
         command_metrics.flag("dom_click_behind_modal", True)
         name = clicked.get("modal")
         lock = f'the modal dialog "{name}" is open over it' if name else "a modal dialog is open over it"
@@ -611,7 +620,9 @@ DOM_CLICK = """(el) => {
     for (; node; node = node.parentNode || node.host) if (node === outer) return true;
     return false;
   };
-  const modals = [...document.querySelectorAll("dialog:modal, [aria-modal=true]")];
+  const modals = el.checkVisibility && CSS.supports("selector(:modal)")
+    ? [...document.querySelectorAll("dialog:modal, [aria-modal=true]")].filter((modal) => !/opacity\\(0\\)/.test(getComputedStyle(modal).filter))
+    : [];
   const owner = (node) => modals.filter((modal) => within(modal, node)).pop();
   const ownerAt = (x, y) => {
     let hit = document.elementFromPoint(x, y);

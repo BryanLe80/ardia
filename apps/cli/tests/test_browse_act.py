@@ -368,6 +368,36 @@ class ActInChrome(unittest.TestCase):
         self.value("document.getElementById('locked').showModal(), 'ok'")
         self.assert_held_back("#s2", "Locked in")
 
+    def test_an_aria_modal_faded_by_filter_opacity_0_does_not_hold_back_a_dom_click(self):
+        self.open_carousel_modal()
+        self.value("reveal('filtered')")
+        self.assert_dom_clicked("#s2", "s2")
+
+    def test_a_dialog_still_fading_out_after_its_close_gets_out_of_the_way_of_the_next_click(self):
+        self.open_carousel_modal()
+        for close in (("click", "#fade-close"), ("press", "Escape")):
+            for together in (True, False):
+                self.value("state.clicked.length = 0, reveal('fading')")
+                if together:
+                    said = self.browse("batch", " ".join(close), "click #s2").stdout
+                else:
+                    self.browse(*close)
+                    said = self.browse("click", "#s2").stdout
+                self.assertIn("got a DOM click instead of a pointer click", said, (close, together))
+                self.assertEqual(self.value("state.clicked.join()"), "s2", (close, together))
+
+    def test_a_dialog_that_stays_open_is_still_refused_after_the_short_wait(self):
+        self.open_carousel_modal()
+        started = time.monotonic()
+        self.assert_dom_clicked("#s2", "s2")
+        clicked_in = time.monotonic() - started
+        self.value("state.clicked.length = 0, reveal('fading')")
+        started = time.monotonic()
+        self.assert_held_back("#s2", "Newsletter")
+        refused_in = time.monotonic() - started
+        self.assertGreater(refused_in - clicked_in, 0.3)
+        self.assertLess(refused_in - clicked_in, 1.5)
+
     def test_a_zero_height_aria_modal_wrapper_with_fixed_children_holds_back_a_dom_click(self):
         self.open_carousel_modal()
         self.value("reveal('headless'), document.getElementById('pay').focus(), 'ok'")

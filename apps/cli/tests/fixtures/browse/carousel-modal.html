@@ -26,6 +26,9 @@
   #site-menu { position: fixed; left: 0; right: 0; top: 0; max-height: 0; overflow: hidden; background: #fff; }
   #site-menu a { display: block; height: 40px; }
   #clipped { position: fixed; inset: 0; background: #fff; clip-path: inset(100%); }
+  #filtered { position: fixed; inset: 40px; background: #fff; filter: opacity(0); }
+  #fading { position: fixed; inset: 40px; background: #fff; transition: opacity 300ms; }
+  #fading.closing { opacity: 0; }
 </style>
 </head>
 <body>
@@ -62,11 +65,17 @@
 <nav id="site-menu" role="dialog" aria-modal="true" aria-label="Site menu" hidden><a href="#home">Home</a><a href="#shop">Shop</a></nav>
 <div id="clipped" role="dialog" aria-modal="true" aria-label="Clipped" hidden><button>Clipped</button></div>
 <div inert><dialog id="locked" aria-label="Locked in">Locked in <button>OK</button></dialog></div>
+<div id="filtered" role="dialog" aria-modal="true" aria-label="Filtered" hidden><button>Filtered</button></div>
+<div id="fading" role="dialog" aria-modal="true" aria-label="Newsletter" hidden>Newsletter <button id="fade-close">Close</button></div>
 <script>
   const state = { clicked: [] };
   const record = (id) => { state.clicked.push(id); document.getElementById("report").textContent = JSON.stringify(state); };
   for (const id of ["s1", "s2", "s3", "m1", "m2", "l1", "l2", "u1", "u2"]) document.getElementById(id).addEventListener("click", () => record(id));
   const reveal = (...ids) => { for (const id of ids) document.getElementById(id).hidden = false; return "ok"; };
+  const fading = document.getElementById("fading");
+  const fadeOut = () => { if (fading.hidden || fading.classList.contains("closing")) return; fading.classList.add("closing"); setTimeout(() => { fading.hidden = true; fading.classList.remove("closing"); }, 300); };
+  document.getElementById("fade-close").addEventListener("click", fadeOut);
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") fadeOut(); });
   const shadow = document.getElementById("shadow-host").attachShadow({ mode: "open" });
   shadow.innerHTML = `<style>.track { overflow: hidden; width: 600px; } .slides { display: flex; transform: translateX(-2700px); } button { flex: 0 0 300px; height: 80px; }</style>
     <div class="track"><div class="slides"><button>Shadow one</button><button id="sh2">Shadow two</button></div></div>`;
