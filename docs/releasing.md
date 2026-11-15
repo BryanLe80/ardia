@@ -218,6 +218,22 @@ previous version (`{"version":1,"lastVersion":"<previous>","pending":null}`) and
 `ARDIA_INSTANCE=releaseNotes` added (test instances skip the tab without it). `curl localhost:<port>/json` must
 list one `…/release-notes#<version>` page; a second launch opens none.
 
+## Linux package
+
+The Linux package ships on the same GitHub release. The Release workflow's `linux` job builds it with
+`scripts/linux/release.sh <version> --engine exact`, and `publish.sh` attaches the assets when it creates the release:
+
+- `Ardia-<version>-linux-x64.tar.xz` and its `.sha256`: the browser, with `lib/ardia/VERSION` and the bundled CLI.
+- `ardia-cli-<version>-linux-x64.tar.gz` and its `.sha256`: the `ardia` command for Linux.
+
+The script refuses what `release.sh` refuses: a missing notes file or one whose frontmatter doesn't read, a
+`MARKETING_VERSION` other than `<version>`, and uncommitted changes (here under `apps/browser`, `apps/linux`,
+`apps/cli`, `packages`, `engine` or `scripts/linux`). It uses the exact Linux engine for HEAD's engine key
+(`engine/engine-key.sh`), published in ardia-browser/ardia. Without one the `linux` job fails and the macOS release
+ships alone; build the engine, then run `scripts/linux/release.sh <version>` on a Linux machine at the release commit
+and the `gh release upload` command it prints. A nightly and a stable go the same way.
+See [linux-ci.md](linux-ci.md) › Linux releases.
+
 ## CI releases
 
 `.github/workflows/release.yml` is the release pipeline, run by hand only (Actions › Release › Run workflow, or
