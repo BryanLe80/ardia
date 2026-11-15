@@ -526,6 +526,14 @@ async def dom_click(page, element, error: BrowseError):
     from ardia_cli import command_metrics
 
     clicked = await page.call(DOM_CLICK, element, frame=element.frame)
+    if isinstance(clicked, dict):
+        command_metrics.flag("dom_click_behind_modal", True)
+        name = clicked.get("modal")
+        lock = f'the modal dialog "{name}" is open over it' if name else "a modal dialog is open over it"
+        raise BrowseError(
+            f"Element {element.label} is outside the visible page, and {lock}. Close that first (press Escape, or its close button), then retry",
+            data={**(error.data or {}), "scrollLock": lock}, code="outside_viewport",
+        )
     if not clicked:
         raise error
     command_metrics.flag("dom_click_fallback", True)
@@ -599,11 +607,34 @@ DOM_CLICK = """(el) => {
     if (/hidden|auto|scroll|clip/.test(overflow)) { clipped = true; break; }
   }
   if (!clipped) return false;
-  const shown = (node) => node.checkVisibility ? node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) : !!node.offsetParent;
-  const modals = [...document.querySelectorAll("dialog:modal, [aria-modal=true]")].filter(shown);
-  const focused = modals.filter((node) => node.contains(document.activeElement));
-  const holding = focused.length ? focused.slice(-1) : modals;
-  if (modals.length && !holding.some((node) => node.contains(el))) return false;
+  const within = (outer, node) => {
+    for (; node; node = node.parentNode || node.host) if (node === outer) return true;
+    return false;
+  };
+  const onScreen = (box) => ({ left: Math.max(box.left, 0), right: Math.min(box.right, innerWidth), top: Math.max(box.top, 0), bottom: Math.min(box.bottom, innerHeight) });
+  const showing = (node) => {
+    if (node.closest("[inert]")) return false;
+    if (node.checkVisibility ? !node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) : !node.offsetParent) return false;
+    const box = onScreen(node.getBoundingClientRect());
+    return box.right > box.left && box.bottom > box.top;
+  };
+  const modals = [...document.querySelectorAll("dialog:modal, [aria-modal=true]")].filter(showing);
+  if (modals.length) {
+    const owner = (node) => modals.filter((modal) => within(modal, node)).pop();
+    const focused = owner(document.activeElement);
+    const onTop = modals.filter((modal) => {
+      const box = onScreen(modal.getBoundingClientRect());
+      return owner(document.elementFromPoint((box.left + box.right) / 2, (box.top + box.bottom) / 2)) === modal;
+    });
+    const holding = focused ? [focused] : onTop.length ? onTop : modals;
+    if (!holding.some((modal) => within(modal, el))) {
+      const blocking = holding[holding.length - 1];
+      const labelled = blocking.getAttribute("aria-labelledby");
+      const name = (blocking.getAttribute("aria-label") || (labelled && document.getElementById(labelled)?.innerText) || blocking.innerText || "")
+        .trim().split("\\n")[0].slice(0, 60);
+      return { modal: name };
+    }
+  }
   el.focus && el.focus({ preventScroll: true });
   el.click();
   return true;

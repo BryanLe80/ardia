@@ -10,6 +10,9 @@
   #chat { position: fixed; right: 16px; bottom: 16px; }
   #sheet { position: fixed; inset: 40px; background: #fff; opacity: 0; pointer-events: none; }
   #sheet.open { opacity: 1; pointer-events: auto; }
+  #drawer { position: fixed; top: 0; right: 0; width: 300px; height: 100%; background: #fff; transform: translateX(100%); }
+  #popover { position: fixed; top: 0; left: 0; width: 0; height: 0; overflow: hidden; }
+  #panel { position: fixed; left: 16px; bottom: 16px; width: 200px; height: 60px; background: #fff; }
 </style>
 </head>
 <body>
@@ -23,13 +26,22 @@
 <div id="chat" role="dialog" aria-label="Chat">Need help?</div>
 <dialog id="modal" aria-label="Cookie settings">Cookie settings <button id="close-modal">Close</button>
   <div class="track"><div class="slides"><button id="m1">Partner one</button><button id="m2">Partner two</button></div></div>
+  <div id="shadow-host"></div>
   <dialog id="partner" aria-label="Partner details">Partner details <button id="close-partner">Close</button></dialog>
 </dialog>
 <dialog id="confirm" aria-label="Leave the page?">Leave the page? <button id="stay">Stay</button></dialog>
 <div id="sheet" role="dialog" aria-modal="true" aria-label="Account">Account <button id="close-sheet">Close</button></div>
+<div id="drawer" role="dialog" aria-modal="true" aria-label="Menu" hidden>Menu</div>
+<div id="popover" role="dialog" aria-modal="true" aria-label="Share" hidden>Share</div>
+<div id="panel" role="dialog" aria-modal="true" aria-label="Filters" inert hidden>Filters</div>
 <script>
   const state = { clicked: [] };
-  for (const id of ["s1", "s2", "s3", "m1", "m2"]) document.getElementById(id).addEventListener("click", () => { state.clicked.push(id); document.getElementById("report").textContent = JSON.stringify(state); });
+  const record = (id) => { state.clicked.push(id); document.getElementById("report").textContent = JSON.stringify(state); };
+  for (const id of ["s1", "s2", "s3", "m1", "m2"]) document.getElementById(id).addEventListener("click", () => record(id));
+  const shadow = document.getElementById("shadow-host").attachShadow({ mode: "open" });
+  shadow.innerHTML = `<style>.track { overflow: hidden; width: 600px; } .slides { display: flex; transform: translateX(-2700px); } button { flex: 0 0 300px; height: 80px; }</style>
+    <div class="track"><div class="slides"><button>Shadow one</button><button id="sh2">Shadow two</button></div></div>`;
+  shadow.getElementById("sh2").addEventListener("click", () => record("sh2"));
   document.getElementById("open-modal").addEventListener("click", () => document.getElementById("modal").showModal());
   document.getElementById("close-modal").addEventListener("click", () => document.getElementById("modal").close());
   document.getElementById("open-sheet").addEventListener("click", () => document.getElementById("sheet").classList.add("open"));

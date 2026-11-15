@@ -271,6 +271,19 @@ class ActInChrome(unittest.TestCase):
     def open_carousel_modal(self):
         self.browse("open", f"http://127.0.0.1:{self.http_port}/carousel-modal.html", "--show")
 
+    def assert_held_back(self, target: str, dialog: str):
+        stuck = self.browse("click", target, check=False)
+        self.assertNotEqual(stuck.returncode, 0)
+        said = stuck.stderr + stuck.stdout
+        self.assertIn("Close that first", said)
+        self.assertIn(f'the modal dialog "{dialog}" is open over it', said)
+        self.assertEqual(self.value("state.clicked.join()"), "")
+
+    def assert_dom_clicked(self, target: str, clicked: str):
+        said = self.browse("click", target).stdout
+        self.assertIn("got a DOM click instead of a pointer click", said)
+        self.assertEqual(self.value("state.clicked.join()"), clicked)
+
     def test_an_off_page_slide_gets_a_dom_click_beside_a_non_modal_dialog_in_an_app_shell(self):
         self.open_carousel_modal()
         said = self.browse("click", "#s2").stdout
@@ -280,45 +293,57 @@ class ActInChrome(unittest.TestCase):
     def test_an_off_page_slide_is_not_clicked_through_a_modal_dialog(self):
         self.open_carousel_modal()
         self.browse("click", "#open-modal")
-        stuck = self.browse("click", "#s2", check=False)
-        self.assertNotEqual(stuck.returncode, 0)
-        self.assertIn("Close that first", stuck.stderr + stuck.stdout)
-        self.assertEqual(self.value("state.clicked.join()"), "")
+        self.assert_held_back("#s2", "Cookie settings")
 
     def test_an_off_page_slide_inside_the_open_modal_dialog_gets_a_dom_click(self):
         self.open_carousel_modal()
         self.browse("click", "#open-modal")
-        said = self.browse("click", "#m2").stdout
-        self.assertIn("got a DOM click instead of a pointer click", said)
-        self.assertEqual(self.value("state.clicked.join()"), "m2")
+        self.assert_dom_clicked("#m2", "m2")
+
+    def test_an_off_page_slide_in_a_shadow_root_inside_the_open_modal_dialog_gets_a_dom_click(self):
+        self.open_carousel_modal()
+        self.browse("click", "#open-modal")
+        self.assert_dom_clicked('text="Shadow two"', "sh2")
 
     def test_an_off_page_slide_in_a_modal_dialog_over_another_modal_gets_a_dom_click(self):
         self.open_carousel_modal()
         self.value("document.getElementById('sheet').classList.add('open'), document.getElementById('modal').showModal(), 'ok'")
-        said = self.browse("click", "#m2").stdout
-        self.assertIn("got a DOM click instead of a pointer click", said)
-        self.assertEqual(self.value("state.clicked.join()"), "m2")
+        self.assert_dom_clicked("#m2", "m2")
 
     def test_an_off_page_slide_in_a_modal_dialog_under_another_modal_is_not_clicked(self):
         self.open_carousel_modal()
         self.value("document.getElementById('modal').showModal(), document.getElementById('confirm').showModal(), 'ok'")
-        stuck = self.browse("click", "#m2", check=False)
-        self.assertNotEqual(stuck.returncode, 0)
-        self.assertIn("Close that first", stuck.stderr + stuck.stdout)
-        self.assertEqual(self.value("state.clicked.join()"), "")
+        self.assert_held_back("#m2", "Leave the page?")
+
+    def test_with_focus_in_no_modal_only_the_modal_on_top_takes_a_dom_click(self):
+        self.open_carousel_modal()
+        self.value("document.getElementById('modal').showModal(), document.getElementById('confirm').showModal(), document.activeElement.blur(), 'ok'")
+        self.assertEqual(self.value("document.activeElement.tagName"), "BODY")
+        self.assert_held_back("#m2", "Leave the page?")
+        self.value("document.getElementById('confirm').close(), document.activeElement.blur(), 'ok'")
+        self.assert_dom_clicked("#m2", "m2")
 
     def test_an_off_page_slide_beside_a_nested_modal_dialog_is_not_clicked(self):
         self.open_carousel_modal()
         self.value("document.getElementById('modal').showModal(), document.getElementById('partner').showModal(), 'ok'")
-        stuck = self.browse("click", "#m2", check=False)
-        self.assertNotEqual(stuck.returncode, 0)
-        self.assertIn("Close that first", stuck.stderr + stuck.stdout)
-        self.assertEqual(self.value("state.clicked.join()"), "")
+        self.assert_held_back("#m2", "Partner details")
 
     def test_an_off_page_slide_is_not_clicked_through_an_aria_modal_sheet(self):
         self.open_carousel_modal()
         self.browse("click", "#open-sheet")
-        stuck = self.browse("click", "#s2", check=False)
-        self.assertNotEqual(stuck.returncode, 0)
-        self.assertIn("Close that first", stuck.stderr + stuck.stdout)
-        self.assertEqual(self.value("state.clicked.join()"), "")
+        self.assert_held_back("#s2", "Account")
+
+    def test_a_closed_aria_modal_slid_off_screen_does_not_hold_back_a_dom_click(self):
+        self.open_carousel_modal()
+        self.value("document.getElementById('drawer').hidden = false, 'ok'")
+        self.assert_dom_clicked("#s2", "s2")
+
+    def test_a_closed_aria_modal_of_zero_size_does_not_hold_back_a_dom_click(self):
+        self.open_carousel_modal()
+        self.value("document.getElementById('popover').hidden = false, 'ok'")
+        self.assert_dom_clicked("#s2", "s2")
+
+    def test_an_inert_aria_modal_does_not_hold_back_a_dom_click(self):
+        self.open_carousel_modal()
+        self.value("document.getElementById('panel').hidden = false, 'ok'")
+        self.assert_dom_clicked("#s2", "s2")
