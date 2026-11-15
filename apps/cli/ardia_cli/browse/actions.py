@@ -611,52 +611,44 @@ DOM_CLICK = """(el) => {
     for (; node; node = node.parentNode || node.host) if (node === outer) return true;
     return false;
   };
-  const viewportRoot = document.compatMode === "BackCompat" && document.body ? document.body : document.documentElement;
-  const viewportWidth = Math.min(viewportRoot.clientWidth || innerWidth, innerWidth);
-  const viewportHeight = Math.min(viewportRoot.clientHeight || innerHeight, innerHeight);
-  const SLIVER = 2;
-  const visible = (node) => node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
-  const onScreen = (node) => {
-    const box = node.getBoundingClientRect();
-    const clamped = { left: Math.max(box.left, 0), right: Math.min(box.right, viewportWidth), top: Math.max(box.top, 0), bottom: Math.min(box.bottom, viewportHeight) };
-    return clamped.right - clamped.left >= SLIVER && clamped.bottom - clamped.top >= SLIVER ? clamped : null;
+  const modals = [...document.querySelectorAll("dialog:modal, [aria-modal=true]")];
+  const owner = (node) => modals.filter((modal) => within(modal, node)).pop();
+  const ownerAt = (x, y) => {
+    let hit = document.elementFromPoint(x, y);
+    for (let inner = hit?.shadowRoot?.elementFromPoint(x, y); inner && inner !== hit; inner = hit.shadowRoot?.elementFromPoint(x, y)) hit = inner;
+    return hit?.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) ? owner(hit) : undefined;
   };
-  const shownBox = (modal) => {
-    if (modal.closest("[inert]")) return null;
-    const contents = getComputedStyle(modal).display === "contents";
-    if (!contents && !visible(modal)) return null;
-    const own = contents ? null : onScreen(modal);
-    if (own) return own;
-    const walker = document.createTreeWalker(modal, NodeFilter.SHOW_ELEMENT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const box = onScreen(node);
-      if (box && !node.closest("[inert]") && visible(node)) return box;
-    }
-    return null;
-  };
-  const boxes = new Map();
-  for (const modal of document.querySelectorAll("dialog:modal, [aria-modal=true]")) {
-    const box = shownBox(modal);
-    if (box) boxes.set(modal, box);
+  function* tree(node) {
+    yield node;
+    if (node.shadowRoot) for (const child of node.shadowRoot.children) yield* tree(child);
+    for (const child of node.children) yield* tree(child);
   }
-  const modals = [...boxes.keys()];
-  if (modals.length) {
-    const owner = (node) => modals.filter((modal) => within(modal, node)).pop();
-    const focused = owner(document.activeElement);
-    const covered = new Set();
-    for (const box of boxes.values()) {
+  const boxes = new Map(), hits = [];
+  for (const modal of modals) {
+    const sampled = [];
+    boxes.set(modal, sampled);
+    let seen = 0, tried = 0;
+    walk: for (const node of tree(modal)) {
+      if (++seen > 200 || tried >= 40) break;
+      const box = node.getBoundingClientRect();
+      const left = Math.max(box.left, 0), right = Math.min(box.right, innerWidth), top = Math.max(box.top, 0), bottom = Math.min(box.bottom, innerHeight);
+      if (right - left < 2 || bottom - top < 2 || getComputedStyle(node).pointerEvents === "none") continue;
+      sampled.push({ left, right, top, bottom });
       for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
-        const x = box.left + (box.right - box.left) * fx, y = box.top + (box.bottom - box.top) * fy;
-        const over = owner(document.elementFromPoint(x, y));
-        if (!over) continue;
-        for (const [other, under] of boxes) {
-          if (other !== over && x >= under.left && x <= under.right && y >= under.top && y <= under.bottom) covered.add(other);
-        }
+        const x = left + (right - left) * fx, y = top + (bottom - top) * fy, over = ownerAt(x, y);
+        tried++;
+        if (over) hits.push({ over, x, y });
+        if (over === modal) break walk;
       }
     }
-    const top = modals.filter((modal) => !covered.has(modal));
-    const ranked = top.length ? top : modals;
-    const holding = ranked.length === 1 ? ranked : ranked.includes(focused) ? [focused] : top.length ? ranked : ranked.slice(-1);
+  }
+  const open = modals.filter((modal) => hits.some((hit) => hit.over === modal));
+  if (open.length) {
+    const under = (modal, { over, x, y }) => over !== modal && boxes.get(modal).some((box) => x >= box.left && x <= box.right && y >= box.top && y <= box.bottom);
+    const top = open.filter((modal) => !hits.some((hit) => under(modal, hit)));
+    const ranked = top.length ? top : open.slice(-1);
+    const focused = owner(document.activeElement);
+    const holding = ranked.length > 1 && ranked.includes(focused) ? [focused] : ranked;
     if (!holding.some((modal) => within(modal, el))) {
       const blocking = holding[holding.length - 1];
       const labelled = blocking.getAttribute("aria-labelledby");

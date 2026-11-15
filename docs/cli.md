@@ -353,18 +353,19 @@ close, never a bare "Continue" or "Decline" on some other dialog, says so in the
 (`A consent banner was in the way: … "Reject all" button was clicked (reject)`) and retries; otherwise it scrolls
 the element to the middle of the viewport (a sticky header over it) and retries. A left click on an element that still sits outside the page after that
 (a carousel slide translated to x = -2700) gets a DOM `click()` instead, and the output says so, but only when it is
-visible to CSS, at least 4×4, not clipped (sr-only), inside a container that clips overflow, and, while a modal
-dialog is showing, inside the one on top. Only a native `<dialog>` opened with `showModal()` and an element marked
-`aria-modal="true"` count as modal: a `role="dialog"` or `role="alertdialog"` without `aria-modal`, as Radix renders
-it, and a modal inside a shadow root aren't seen, and the click goes through as before. A modal is showing when it is
-visible to CSS and opacity, not inert, and its box, or for a wrapper with no box of its own (Headless UI's zero-height
-`relative z-50` one) a visible descendant's box, covers at least 2×2 px of the viewport without its scrollbar. The one on top is found by
-hit-testing five points of each showing modal: a modal another one is over at any of them is below it. When more than
-one is left on top, the one holding focus wins; when the hit test finds none on top, the last in the document counts.
-A shadow root counts as inside its host, and a menu portaled out of the dialog doesn't count as inside it.
-Outside the modal on top, the click fails with `outside_viewport` naming that dialog and saying to close it first
-(`dom_click_behind_modal`); a honeypot at left:-9999px still fails
-(`dom_click_fallback`): one BU Bench agent hit `outside_viewport` 20 times on carousel cards. If it's still covered it fails with
+visible to CSS, at least 4×4, not clipped (sr-only), and inside a container that clips overflow; a honeypot at
+left:-9999px still fails (`dom_click_fallback`): one BU Bench agent hit `outside_viewport` 20 times on carousel cards.
+While a modal dialog is open, that DOM click only goes to an element inside the open dialog on top; anything else
+fails with `outside_viewport`, naming the dialog and saying to close it first (`dom_click_behind_modal`). A dialog
+counts as open when a click at it would land in it: the page is hit-tested at points on the dialog and on up to 200
+of its elements (40 hit tests at most), so one closed by clipping, collapsing, sliding off screen, `inert` or
+`pointer-events: none` doesn't count, and neither does one faded to `opacity: 0`. An open dialog hit at a point inside
+another one's box is above it. Of open dialogs that don't overlap, the one holding focus takes the click, or any of
+them when none does, and the error names the focused one or the last in the document. Only a
+`<dialog>` opened with `showModal()` and an element marked `aria-modal="true"` are recognised. These aren't, so the
+click goes through them as before: `role="dialog"` or `role="alertdialog"` without `aria-modal` (Radix, MUI 5, React
+Aria Components), a modal in a parent frame, and a modal element inside a shadow root (a shadow host can itself be
+the modal). A menu portaled out of the dialog counts as outside it. If the element is still covered it fails with
 `covered by <tag#id.class>`, and one outside the laid-out viewport with `outside_viewport` (the point and the viewport
 size). A tab with no size yet (0×0, seen on a loaded hidden test instance) is waited for up to 2 s, then given a
 1280×800 device metrics override for that command, cleared afterwards and never over the session's own `set viewport`;

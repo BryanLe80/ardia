@@ -348,6 +348,26 @@ class ActInChrome(unittest.TestCase):
         self.value("document.getElementById('panel').hidden = false, 'ok'")
         self.assert_dom_clicked("#s2", "s2")
 
+    def test_a_closed_zero_size_overflow_hidden_aria_modal_holding_a_button_does_not_hold_back_a_dom_click(self):
+        self.open_carousel_modal()
+        self.value("reveal('share-sheet')")
+        self.assert_dom_clicked("#s2", "s2")
+
+    def test_a_closed_max_height_0_menu_with_links_does_not_hold_back_a_dom_click(self):
+        self.open_carousel_modal()
+        self.value("reveal('site-menu')")
+        self.assert_dom_clicked("#s2", "s2")
+
+    def test_an_aria_modal_hidden_by_clip_path_does_not_hold_back_a_dom_click(self):
+        self.open_carousel_modal()
+        self.value("reveal('clipped')")
+        self.assert_dom_clicked("#s2", "s2")
+
+    def test_a_modal_dialog_inside_an_inert_container_holds_back_a_dom_click(self):
+        self.open_carousel_modal()
+        self.value("document.getElementById('locked').showModal(), 'ok'")
+        self.assert_held_back("#s2", "Locked in")
+
     def test_a_zero_height_aria_modal_wrapper_with_fixed_children_holds_back_a_dom_click(self):
         self.open_carousel_modal()
         self.value("reveal('headless'), document.getElementById('pay').focus(), 'ok'")
